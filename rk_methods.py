@@ -4,6 +4,7 @@ routines rk4, rkdumb, rkck, rkqs, odeint based on implementation described in NU
 '''
 import numpy as np
 import sys
+from icecream import  ic
 
 def rk4(y, dydx, x, h, derivs):
     '''
@@ -88,10 +89,10 @@ def rkdumb(ystart, x1, x2, nsteps, derivs):
     for i in range(nsteps):
         # increment independant variable x 
         x = x1 + i*h
-        dAlldx = derivs(x,y)
+        dydx = derivs(x,y)
         # perform an RK4 step to obtain y at x + h
         print(f'\r[INFO] performing rk4 step {i+1}/{nsteps}...',end='')
-        y = rk4(y, dAlldx, x, h, derivs)
+        y = rk4(y, dydx, x, h, derivs)
         # add results to ys array
         ys[i+1] = np.asarray([[x+h,*y]])
     
@@ -141,10 +142,10 @@ def rkqs(y, dydx, x, htry, eps, yscal, derivs):
     
     # define params for rkqs step 
 
-    SAFETY = 0.9 # factor accounting for inexactness in error estimation per step
+    SAFETY = 0.9 # factor accounting for inexactness in truncation error estimation per step
     PGROW = -0.2 # exponent used during step size increase 
     PSHRINK = -0.25 # exponent used during step size decrease
-    ERRCON = (5/SAFETY)**(1/PGROW)  # what is this parameter saying???????????????
+    ERRCON = (5/SAFETY)**(1/PGROW)  # 
 
     # set step size to htry
     h = htry
@@ -154,7 +155,8 @@ def rkqs(y, dydx, x, htry, eps, yscal, derivs):
     
     # evaluate accuracy of step
     errmax = 0
-    errmax = np.amax([errmax,abs(yerr/yscal)])
+
+    errmax = np.amax([errmax,*abs(yerr/yscal)])
     errmax /= eps # scale error relative to required tolerance level
 
     while errmax > 1:
@@ -163,13 +165,13 @@ def rkqs(y, dydx, x, htry, eps, yscal, derivs):
         h = np.amax([abs(htemp), 0.1*abs(h)]) * np.sign(h) # never reduce by more than factor of 10
         xnew = x+h 
         if (xnew == x): 
-            print('[ERROR] step size underflow, try relaxing tolerances') 
+            prnt('[ERROR] step size underflow, try relaxing tolerances') 
             sys.exit(1)
         # retry step with new step size
         yout, yerr = rkck(y, dydx, x, h, derivs)
         # re estimate error
         errmax = 0
-        errmax = np.amax([errmax,abs(yerr/yscal)])
+        errmax = np.amax([errmax,*abs(yerr/yscal)])
         errmax /= eps
     
     # step succeeded, attempt to increase step size
@@ -220,9 +222,6 @@ def rkck(y, dydx, x, h, derivs):
 
     # Define Cash Karp params for 5th order Embedded Runga-Kutta method
 
-    '''
-    check param list
-    '''
     param_matrix = np.asarray([
         [0, 0, 0, 0, 0, 0, 37/378, 2825/27648],
         [1/5, 1/5, 0, 0, 0, 0, 0, 0],
@@ -236,9 +235,7 @@ def rkck(y, dydx, x, h, derivs):
     b = param_matrix[:,1:6]
     c = param_matrix[:,6]
     cstar = param_matrix[:,7]
-
     # calculate k param values
-    '''check no mistakes in indexing'''
     k1 = h * dydx
     k2 = h * derivs(x + a[1]*h, y + b[1,0] * k1)
     k3 = h * derivs(x + a[2]*h, y + b[2,0] * k1 + b[2,1] * k2)
@@ -248,16 +245,130 @@ def rkck(y, dydx, x, h, derivs):
 
     K = np.asarray([k1,k2,k3,k4,k5,k6])
     
-    '''check these operations are working as expected'''
-    yout = y + c*K
-    yerr = np.sum((c - cstar)*K)
+    # reshape so the broadcasting works out
+    c = c.reshape(-1,1) 
+    cstar = cstar.reshape(-1,1)
+    y = y.reshape(1,-1)
 
-    return yout, yerr
+    
+    # calculate final y and estimate truncation error
+    ck = c*K
+    yout = y + ck[0] + ck[1] + ck[2] + ck[3] + ck[4] + ck[5]
+    yerr = np.sum((c - cstar)*K,axis=0)
+
+    return yout.squeeze(), yerr.squeeze() # remove the added dim
 
     
 
 
-def odeint():
+def odeint(ystart, x1, x2, eps, h1, hmin, derivs, rkqs):
+    '''
+    Integrates a set of ODEs from x1 to x2 using the rkqs function (adaptive step size cash karp RK-5 method). 
+    Tracks number of good and bad steps taken.
+    returns array containing integated results at each step along with number of good and bad steps, and the array of step sizes taken. 
+    
+    Parameters
+    ----------
+
+    ystart : np.ndarray
+        array of initial values for dependant variables
+    
+    x1 : float
+        initial value for the independant variable
+    
+    x2 : float
+        final value for the independant variable
+    
+    eps : float
+        overall tolerance level used to define minimum truncation error allows per step
+
+    h1 : float
+        step size for first step
+
+    hmin : float
+        minimum allows step size
+
+    derivs : function(x,y)
+        External function which evaluates ODEs at points x,y and returns an array dydx containing their values
+    
+    rkqs : function(y, dydx, x, htry, eps, yscal, derivs):
+        Function which makes a 5th order adaptive step size Runge-Kutta step 
+    
+
+    Returns
+    -------
+    ys : np.ndarray
+        array containing integrated values of dependant variables from x1 to x2
+    
+    nok : int
+        number of successful steps taken
+    
+    nbad : int
+        number of bad (but retried and fixed) steps taken
+    
+    hsteps : np.ndarray
+        array of step sizes used  
+    '''
+    # set odeint hyper params
+    MAXSTP = int(1e7) # maximum number of steps allowed to be taken
+    TINY = np.finfo(float).resolution # a small number to prevent divide by 0 errors when scaling truncation error
+    
+    # set the initial values and initalise results array
+    x = x1
+    y = ystart
+    h = np.sign(x2 - x1) * h1
+
+    ys = np.zeros((MAXSTP+1,len([x,*ystart])))
+    ys[0] = np.asarray([x1,*ystart])
+    hsteps = np.zeros((MAXSTP))
+    nok = 0
+    nbad = 0
+
+    # take steps
+    for i in range(MAXSTP):
+        print(f'\r[INFO] performing rk4 step {i}...',end='')
+        dydx = derivs(x,y) 
+        yscal = abs(y) + abs(h*dydx) + TINY # array used to scale error in rkqs
+        if (x+h-x2) * (x+h-x1) > 0:
+            # if step size can overshoot, decrease step size
+            h = x2 - x 
+        
+        # make step
+        y, hdid, hnext = rkqs(y, dydx, x, h, eps, yscal, derivs)
+        
+        # keep track of step size used in step
+        hsteps[i] = hdid
+        if hdid == h: nok+=1
+        else: nbad+=1
+        
+        if ((x-x2) * (x2-x1) > 0):
+            # finished? remove 0 rows in ys and hsteps
+            ys = ys[~np.all(ys == 0, axis=1)]
+            hsteps = hsteps[~np.all(hsteps == 0, axis=0)]
+
+            return ys, nok, nbad, hsteps 
+        
+        if abs(hnext) < hmin: 
+            print('[ERROR] step size to be taken smaller than minimum allowed by odeint')
+            sys.exit(1)
+        
+        # set next step and store results from current step
+        h = hnext
+        x+= hnext
+        ys[i] = np.asarray([x,*y])
+    
+    print('[ERROR] too many steps in odeint, try reducing required accuracy')
+    sys.exit(1)
+
+
+
+
+
+     
+
+
+
+
     
 
 

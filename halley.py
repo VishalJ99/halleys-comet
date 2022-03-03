@@ -76,14 +76,15 @@ def main(t_end, n_steps):
     rgba_colors[:, 3] = alpha_linear
     
     plt.title("Y vs X plot for Halley's comet")
-    plt.scatter(ys[:,1],ys[:,2],color = rgba_colors)
+    plt.scatter(ys[:,1],ys[:,2],color = rgba_colors,s=1)
     plt.show()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = "Script to calculate trajectory of Halley's comet")
-    parser.add_argument('--t_end', type = float, help = 'value for final time in seconds to integrate till from t=0, default value = 2.398e+9 (1 period)', default = 2.398e+9)
-    parser.add_argument('--n_steps', type = int, help = 'value for the number of steps to take to integrate the equations (default = 5000)', default = 5000)
+    # lambda functions for type allow for scientific numbers to be passed via command line
+    parser.add_argument('--t_end', type=lambda x: float(x), help = 'value for final time in seconds to integrate till from t=0, default value = 2.398e+9 (1 period)', default = 2.398e+9)
+    parser.add_argument('--n_steps', type=lambda x: int(float(x)), help = 'value for the number of steps to take to integrate the equations (default = 5000)', default = 5000)
 
     args = parser.parse_args()
     main(args.t_end, args.n_steps)

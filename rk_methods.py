@@ -1,10 +1,12 @@
 '''
 routines rk4, rkdumb, rkck, rkqs, odeint based on implementation described in NUMERICAL RECIPES IN FORTRAN chapter 16 
-
+TODO:
+Improve comments about the derivs function
 '''
 import numpy as np
 import sys
 from icecream import  ic
+# import pyyaml
 
 def rk4(y, dydx, x, h, derivs):
     '''
@@ -165,7 +167,7 @@ def rkqs(y, dydx, x, htry, eps, yscal, derivs):
         h = np.amax([abs(htemp), 0.1*abs(h)]) * np.sign(h) # never reduce by more than factor of 10
         xnew = x+h 
         if (xnew == x): 
-            prnt('[ERROR] step size underflow, try relaxing tolerances') 
+            print('[ERROR] step size underflow, try relaxing tolerances') 
             sys.exit(1)
         # retry step with new step size
         yout, yerr = rkck(y, dydx, x, h, derivs)
@@ -221,7 +223,6 @@ def rkck(y, dydx, x, h, derivs):
     '''
 
     # Define Cash Karp params for 5th order Embedded Runga-Kutta method
-
     param_matrix = np.asarray([
         [0, 0, 0, 0, 0, 0, 37/378, 2825/27648],
         [1/5, 1/5, 0, 0, 0, 0, 0, 0],
@@ -235,6 +236,7 @@ def rkck(y, dydx, x, h, derivs):
     b = param_matrix[:,1:6]
     c = param_matrix[:,6]
     cstar = param_matrix[:,7]
+    
     # calculate k param values
     k1 = h * dydx
     k2 = h * derivs(x + a[1]*h, y + b[1,0] * k1)
@@ -250,8 +252,7 @@ def rkck(y, dydx, x, h, derivs):
     cstar = cstar.reshape(-1,1)
     y = y.reshape(1,-1)
 
-    
-    # calculate final y and estimate truncation error
+    # calculate final y and estimate local truncation error
     ck = c*K
     yout = y + ck[0] + ck[1] + ck[2] + ck[3] + ck[4] + ck[5]
     yerr = np.sum((c - cstar)*K,axis=0)
@@ -289,7 +290,7 @@ def odeint(ystart, x1, x2, eps, h1, hmin, derivs, rkqs):
         minimum allows step size
 
     derivs : function(x,y)
-        External function which evaluates ODEs at points x,y and returns an array dydx containing their values
+        External function which evaluates expression for vector of derivatives at point x and returns an array dAlldx containing their values
     
     rkqs : function(y, dydx, x, htry, eps, yscal, derivs):
         Function which makes a 5th order adaptive step size Runge-Kutta step 
@@ -298,7 +299,8 @@ def odeint(ystart, x1, x2, eps, h1, hmin, derivs, rkqs):
     Returns
     -------
     ys : np.ndarray
-        array containing integrated values of dependant variables from x1 to x2
+        array containing integrated values of dependant variables from x1 to x2 along with the value of x at which they were calculated
+        ys = [[x_i, *[y_i]],....,[x_N,*[y_N]]]
     
     nok : int
         number of successful steps taken
@@ -320,12 +322,15 @@ def odeint(ystart, x1, x2, eps, h1, hmin, derivs, rkqs):
 
     ys = np.zeros((MAXSTP+1,len([x,*ystart])))
     ys[0] = np.asarray([x1,*ystart])
+    
     hsteps = np.zeros((MAXSTP))
+    hsteps[0] = h1
+    
     nok = 0
     nbad = 0
 
     # take steps
-    for i in range(MAXSTP):
+    for i in range(1,MAXSTP):
         print(f'\r[INFO] performing rk4 step {i}...',end='')
         dydx = derivs(x,y) 
         yscal = abs(y) + abs(h*dydx) + TINY # array used to scale error in rkqs
@@ -345,7 +350,6 @@ def odeint(ystart, x1, x2, eps, h1, hmin, derivs, rkqs):
             # finished? remove 0 rows in ys and hsteps
             ys = ys[~np.all(ys == 0, axis=1)]
             hsteps = hsteps[~np.all(hsteps == 0, axis=0)]
-
             return ys, nok, nbad, hsteps 
         
         if abs(hnext) < hmin: 

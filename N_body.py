@@ -4,6 +4,7 @@ import colorsys
 from ruamel.yaml import YAML
 import argparse
 import matplotlib.pyplot as plt
+from icecream import ic
 '''
 TODO: Vectorise calculation of acceleration on each body 
 
@@ -118,7 +119,7 @@ class N_body():
 
         # store indices of positions and velocities for derivs and plot methods
         self.x_indices = np.arange(0,len(Y_start)-3,4)
-        self.y_indices = np.arange(0,len(Y_start)-2,4)
+        self.y_indices = np.arange(1,len(Y_start)-2,4)
         self.u_indices = np.arange(2,len(Y_start)-1,4)
         self.v_indices = np.arange(3,len(Y_start),4)
         
@@ -173,8 +174,9 @@ class N_body():
         # set accelerations as values for derivatives of velocities in dAlldt
         dAlldt[self.u_indices] = a_x
         dAlldt[self.v_indices] = a_y
-        print(dAlldt)
-        exit(1)
+        # print('Y:',Y)
+        # print('dAlldt:',dAlldt)
+        # exit(1)
         return dAlldt
 
 
@@ -193,8 +195,7 @@ class N_body():
             array storing integrated results from tstart to tend
         
         '''
-        print(self.Y_start)
-        exit(1)
+        ic(self.Y_start, self.m_array)
         results, _, _, _ = odeint(self.Y_start, self.t_start, self.t_final, self.eps, self.h_0, self.h_min, self.derivs, rkqs)
         self.results = results
         return results
@@ -205,8 +206,10 @@ class N_body():
         '''
         if self.results is None: print('[WARNING] please call .forward method to generate results before plotting')
         # plot trajectories of each planet on same scatter plot with variable colour alphas as proxy for time
-        x_pos_array = self.results[:, self.x_indices]
-        y_pos_array = self.results[:, self.y_indices]
+        Y_results = self.results[:,1:]
+        x_pos_array = Y_results[:, self.x_indices]
+        ic(x_pos_array.shape,x_pos_array[:5])
+        y_pos_array = Y_results[:, self.y_indices]
         # generate colours for each bodys trajectory
         rgb_color_list = self._get_colors(self.N)
         rgba_colors = np.zeros((len(self.results),4))
@@ -220,7 +223,15 @@ class N_body():
             rgba_colors[:,:3] = rgb_color_list[i]
             plt.scatter(x_pos_array[:,i],y_pos_array[:,i],color = rgba_colors,s=1)
         if show_fig: plt.show()
-        if save_fig: plt.savefig(f"{save_fig_path}")
+        if save_fig_path: plt.savefig(f"{save_fig_path}")
+        plt.cla()
+        
+        for i in range(self.N):
+            # generate colour for each orbit 
+            rgba_colors[:,:3] = rgb_color_list[i]
+            plt.scatter(x_pos_array[:,i],y_pos_array[:,i],color = rgba_colors,s=1)
+        plt.title('velocity plot of bodies')
+        if show_fig: plt.show()
         
     def CoM_trajectory_plot(self, show_fig = 1, save_fig_path='N_body_com_trajectories.png'):
         '''
@@ -242,12 +253,14 @@ class N_body():
         alpha_sigmoid = 1/(1 + np.exp(-(15*alpha_linear-10)))
         rgba_colors[:,3] = alpha_linear
 
-        for i in range(N):
+        for i in range(self.N):
             # generate colour for each orbit 
             rgba_colors[:,:3] = rgb_color_list[i]
             plt.scatter(x_pos_array[:,i],y_pos_array[:,i],color = rgba_colors,s=1)
         if show_fig: plt.show()
-        if save_fig: plt.savefig(f"{save_fig_path}")
+        if save_fig_path: plt.savefig(f"{save_fig_path}")
+
+        plt.cla()
     
     def _get_colors(self,num_colors):
         '''
@@ -331,7 +344,7 @@ if __name__ == "__main__":
     # lambda functions for type allow for scientific numbers to be passed via command line
     parser.add_argument('config_path', type = str, help = 'path to yaml config file containing masses, initial positions and velocities for N bodies')
     parser.add_argument('--t_start', type=lambda x: float(x), help = 'value of initial time in seconds to integrate from, default value = 0s', default = 0)
-    parser.add_argument('--t_final', type=lambda x: float(x), help = 'value for final time in seconds to integrate till from t=0, default value = 2.398e+9s ', default = 2.398e+9)
+    parser.add_argument('--t_final', type=lambda x: float(x), help = 'value for final time in seconds to integrate till from t=0, default value = 3.156e+9 ', default = 3.156e+9)
     parser.add_argument('--h_0', type=lambda x: int(float(x)), help = 'value for the initial step size (default = 1e5)', default = 1e5)
     parser.add_argument('--h_min', type=lambda x: int(float(x)), help = 'value for the smallest allowed step size (default = 0)', default = 0)
     parser.add_argument('--eps', type=lambda x: float(x), help = 'value for tolerance to set accuracy of each step for adaptive step size algorithm rkqs, (default = 1e-9)', default = 1e-9)

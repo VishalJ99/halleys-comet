@@ -1,0 +1,36 @@
+---
+# info taken from https://nssdc.gsfc.nasa.gov/planetary/factsheet/
+  body1:
+    # the Sun (start with it at the origin)
+    mass: 1.989e30
+    x0: 0
+    y0: 0
+    u0: 0
+    v0: -15
+  
+  body2:
+    mass: 5.972e24 
+    x0: 1.521e11
+    y0 : 0
+    u0 : 0
+    v0 : 29.78e3
+  
+  
+  
+  
+  # body2:
+  #   # Jupiter
+  #   mass: 1.898e27
+  #   x0: 7.4535e11 
+  #   y0: 0
+  #   u0: 0
+  #   v0: 13.06e3 
+  
+  # body3:
+  #   # Saturn 
+  #   mass: 5.683e26
+  #   x0: 1.4796e12
+  #   y0: 0
+  #   u0: 0 
+  #   v0: 9.68e3
+  

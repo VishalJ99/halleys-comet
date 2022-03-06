@@ -8,10 +8,8 @@ from icecream import ic
 '''
 TODO: Vectorise calculation of acceleration on each body 
 
-DEBUG - step size under flow error 
-What are the derivatives being calculated at the first step?
-Is this correct?
-Experiment with range of initial steps
+DEBUG:
+Figure out why plots are not saving
 '''
 
 class N_body():
@@ -174,9 +172,7 @@ class N_body():
         # set accelerations as values for derivatives of velocities in dAlldt
         dAlldt[self.u_indices] = a_x
         dAlldt[self.v_indices] = a_y
-        # print('Y:',Y)
-        # print('dAlldt:',dAlldt)
-        # exit(1)
+
         return dAlldt
 
 
@@ -208,7 +204,6 @@ class N_body():
         # plot trajectories of each planet on same scatter plot with variable colour alphas as proxy for time
         Y_results = self.results[:,1:]
         x_pos_array = Y_results[:, self.x_indices]
-        ic(x_pos_array.shape,x_pos_array[:5])
         y_pos_array = Y_results[:, self.y_indices]
         # generate colours for each bodys trajectory
         rgb_color_list = self._get_colors(self.N)
@@ -222,16 +217,11 @@ class N_body():
             # generate colour for each orbit 
             rgba_colors[:,:3] = rgb_color_list[i]
             plt.scatter(x_pos_array[:,i],y_pos_array[:,i],color = rgba_colors,s=1)
+            plt.title('trajectories')
+
         if show_fig: plt.show()
         if save_fig_path: plt.savefig(f"{save_fig_path}")
-        plt.cla()
-        
-        for i in range(self.N):
-            # generate colour for each orbit 
-            rgba_colors[:,:3] = rgb_color_list[i]
-            plt.scatter(x_pos_array[:,i],y_pos_array[:,i],color = rgba_colors,s=1)
-        plt.title('velocity plot of bodies')
-        if show_fig: plt.show()
+
         
     def CoM_trajectory_plot(self, show_fig = 1, save_fig_path='N_body_com_trajectories.png'):
         '''
@@ -239,11 +229,20 @@ class N_body():
         '''
         if self.results is None: print('[WARNING] please call .forward method to generate results before plotting')
         # plot trajectories of each planet on same scatter plot with variable colour alphas as proxy for time
-        x_pos_array = self.results[:, self.x_indices]
-        y_pos_array = self.results[:, self.y_indices]
+        Y_results = self.results[:,1:]
+        x_pos_array = Y_results[:, self.x_indices]
+        y_pos_array = Y_results[:, self.y_indices]
+        
+        # initialise arrays to CoM position at each time step
+        com_x_pos_array = np.zeros(len(Y_results))
+        com_y_pos_array = np.zeros(len(Y_results))
 
-        com_x_pos_array = 0
-        com_y_pos_array = 0
+        # calculate CoM postion ateach time step
+        M_total = np.sum(self.m_array)
+        com_x_pos_array = 1/M_total * np.sum(self.m_array * x_pos_array, axis = 1)
+        com_y_pos_array = 1/M_total * np.sum(self.m_array * y_pos_array, axis = 1)
+
+
 
         # generate colours for each bodys trajectory
         rgb_color_list = self._get_colors(self.N)
@@ -256,7 +255,9 @@ class N_body():
         for i in range(self.N):
             # generate colour for each orbit 
             rgba_colors[:,:3] = rgb_color_list[i]
-            plt.scatter(x_pos_array[:,i],y_pos_array[:,i],color = rgba_colors,s=1)
+            # plot scatter plot of x,y positions in CoM frame
+            plt.scatter(x_pos_array[:,i] - com_x_pos_array, y_pos_array[:,i] - com_y_pos_array,color = rgba_colors,s=1)
+        plt.title('CoM frame trajectories')
         if show_fig: plt.show()
         if save_fig_path: plt.savefig(f"{save_fig_path}")
 
@@ -335,7 +336,7 @@ def main(config_path,t_start, t_final, h_0, h_min, eps):
     model = N_body(mass_array, Y_start, t_start, t_final, h_0, h_min, eps)
     model.forward()
     model.trajectory_plot()
-    
+    model.CoM_trajectory_plot()
 
 
 

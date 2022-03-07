@@ -43,7 +43,7 @@ def rk4(y, dydx, x, h, derivs):
     k3 = h * derivs(x + h/2, y + k2/2)
     k4 = h * derivs(x + h, y + k3)
 
-    yout = y + k1/6 + k2/3 + k3/3 + k4/6
+    yout = y +  (k1/6 + k2/3 + k3/3 + k4/6)
 
     return yout
 
@@ -157,7 +157,6 @@ def rkqs(y, dydx, x, htry, eps, yscal, derivs):
     
     # evaluate accuracy of step
     errmax = 0
-
     errmax = np.amax([errmax,*abs(yerr/yscal)])
     errmax /= eps # scale error relative to required tolerance level
 
